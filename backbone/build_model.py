@@ -6,7 +6,6 @@ Backbone modules.
 import torch
 from torch import nn
 from torchvision.models._utils import IntermediateLayerGetter
-import resnet
 
 
 class FrozenBatchNorm2d(torch.nn.Module):
@@ -54,7 +53,7 @@ class BackboneBase(nn.Module):
         for name, parameter in backbone.named_parameters():
             if 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
                 parameter.requires_grad_(False)
-        return_layers = {'layer4': "0"}        
+        return_layers = {'layer4': "0"}
         self.body = IntermediateLayerGetter(backbone, return_layers=return_layers)
         self.num_channels = num_channels
 
@@ -69,7 +68,8 @@ class BackboneBase(nn.Module):
 
 class Backbone(BackboneBase):
     """ResNet backbone with frozen BatchNorm."""
-    def __init__(self, 
+
+    def __init__(self,
                  name: str,
                  pretrained: bool,
                  dilation: bool,
@@ -90,13 +90,13 @@ class Backbone(BackboneBase):
 
 def build_resnet(model_name='resnet18', pretrained=False, norm_type='BN'):
     if model_name in ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnext101_32x8d']:
-        backbone = Backbone(model_name, 
-                            pretrained, 
+        backbone = Backbone(model_name,
+                            pretrained,
                             dilation=False,
                             norm_type=norm_type)
     elif model_name in ['resnet50-d', 'resnet101-d']:
-        backbone = Backbone(model_name[:-2], 
-                            pretrained, 
+        backbone = Backbone(model_name[:-2],
+                            pretrained,
                             dilation=True,
                             norm_type=norm_type)
     else:
