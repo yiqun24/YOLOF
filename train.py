@@ -189,10 +189,7 @@ def train():
     t0 = time.time()
     # start training loop
     for epoch in range(max_epoch):
-        if args.distributed:
-            dataloader.sampler.set_epoch(epoch)
-
-            # train one epoch
+        # train one epoch
         for iter_i, (images, targets, masks) in enumerate(dataloader):
             ni = iter_i + epoch * epoch_size
             # warmup
@@ -411,12 +408,12 @@ def build_model(args,
                 coco_pretrained=None):
     print('==============================')
     print('Build {} ...'.format(args.version.upper()))
-    backbone = build_resnet(model_name='resnet18',
-                            pretrained=trainable,
-                            norm_type='FrozeBN')
-    encoder = DilatedEncoder()
-    decoder = Decoder(num_classes=num_classes)
-    model = YOLOF(backbone=backbone, encoder=encoder, decoder=decoder)
+    backbone, bk_dim = build_resnet(model_name='resnet18',
+                                    pretrained=trainable,
+                                    norm_type='FrozeBN')
+    encoder = DilatedEncoder(in_channels=bk_dim)
+    decoder = Decoder(in_channels=bk_dim, num_classes=num_classes)
+    model = YOLOF(backbone=backbone, encoder=encoder, decoder=decoder, device=device)
 
     # Load COCO pretrained weight
     if coco_pretrained is not None:
@@ -439,3 +436,7 @@ def build_model(args,
         model.load_state_dict(checkpoint_state_dict, strict=False)
 
     return model
+
+
+if __name__ == '__main__':
+    train()

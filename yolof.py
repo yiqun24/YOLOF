@@ -10,6 +10,7 @@ class YOLOF(nn.Module):
                  backbone,
                  encoder,
                  decoder,
+                 device,
                  num_classes=20,
                  pos_ignore_thresh=0.15,
                  neg_ignore_thresh=0.7,
@@ -19,7 +20,9 @@ class YOLOF(nn.Module):
         self.encoder = encoder
         self.decoder = decoder
 
+        self.device = device
         self.num_classes = num_classes
+        self.num_anchors = len([[32, 32], [64, 64], [128, 128], [256, 256], [512, 512]])
         # Ignore thresholds:
         self.pos_ignore_thresh = pos_ignore_thresh
         self.neg_ignore_thresh = neg_ignore_thresh
@@ -202,7 +205,7 @@ class YOLOF(nn.Module):
             x = self.encoder(x)
             H, W = x.shape[2:]
             cls_pred, reg_pred = self.decoder(x)
-            anchor_boxes = self.generate_anchors(fmp_size=[H, W])  # [M, 4]
+            anchor_boxes = self.generate_anchor(fmp_size=[H, W])  # [M, 4]
             box_pred = self.box_transform(anchor_boxes[None], reg_pred)  # [B, M, 4]
 
             if mask is not None:

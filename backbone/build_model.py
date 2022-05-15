@@ -7,6 +7,8 @@ import torch
 from torch import nn
 from torchvision.models._utils import IntermediateLayerGetter
 
+from backbone import resnet
+
 
 class FrozenBatchNorm2d(torch.nn.Module):
     """

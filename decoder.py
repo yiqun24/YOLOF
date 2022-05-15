@@ -13,6 +13,7 @@ class Decoder(nn.Module):
                  num_classes=80,
                  num_anchors=1):
         super(Decoder, self).__init__()
+        self.num_classes = num_classes
         self.INF = 1e8
 
         self.cls_subnet = nn.Sequential(
