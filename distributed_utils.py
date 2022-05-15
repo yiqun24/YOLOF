@@ -1,5 +1,3 @@
-# from github: https://github.com/ruinmessi/ASFF/blob/master/utils/distributed_util.py
-
 import torch
 import torch.distributed as dist
 import os
@@ -8,13 +6,6 @@ import pickle
 
 
 def all_gather(data):
-    """
-    Run all_gather on arbitrary picklable data (not necessarily tensors)
-    Args:
-        data: any picklable object
-    Returns:
-        list[data]: list of data gathered from each rank
-    """
     world_size = get_world_size()
     if world_size == 1:
         return [data]

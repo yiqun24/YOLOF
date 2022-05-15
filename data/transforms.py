@@ -2,20 +2,13 @@ import random
 import cv2
 import numpy as np
 import torch
-import torchvision.transforms as T
 import torchvision.transforms.functional as F
-
 
 
 class Compose(object):
     """Composes several augmentations together.
     Args:
         transforms (List[Transform]): list of transforms to compose.
-    Example:
-        >>> augmentations.Compose([
-        >>>     transforms.CenterCrop(10),
-        >>>     transforms.ToTensor(),
-        >>> ])
     """
 
     def __init__(self, transforms):
@@ -29,20 +22,18 @@ class Compose(object):
 
 # Convert ndarray to tensor
 class ToTensor(object):
-    def __init__(self, format='RGB'):
-        self.format = format
+    def __init__(self, fmt='RGB'):
+        self.format = fmt
 
     def __call__(self, image, target=None, mask=None):
         # check color format
         if self.format == 'RGB':
-            # BGR -> RGB
+            # RGB -> BGR
             image = image[..., (2, 1, 0)]
             # [H, W, C] -> [C, H, W]
             image = torch.from_numpy(image).permute(2, 0, 1).contiguous().float()
             image = image / 255.
         elif self.format == 'BGR':
-            # keep BGR format
-            image = image
             # [H, W, C] -> [C, H, W]
             image = torch.from_numpy(image).permute(2, 0, 1).contiguous().float()
         else:
@@ -67,10 +58,10 @@ class DistortTransform(object):
         self.saturation = saturation
         self.exposure = exposure
 
-    def __call__(self, image: np.ndarray, target=None, mask=None) -> np.ndarray:
+    def __call__(self, image: np.ndarray, target=None, mask=None):
         """
         Args:
-            img (ndarray): of shape HxW, HxWxC, or NxHxWxC. The array can be
+            image (ndarray): of shape HxW, HxWxC, or NxHxWxC. The array can be
                 of type uint8 in range [0, 255], or floating point in range
                 [0, 1] or [0, 255].
 
@@ -150,7 +141,6 @@ class JitterCrop(object):
 
         return cropped
 
-
     def __call__(self, image, target=None, mask=None):
         oh, ow = image.shape[:2]
         dw = int(ow * self.jitter_ratio)
@@ -165,9 +155,9 @@ class JitterCrop(object):
         output_size = (swidth, sheight)
         # crop image
         cropped_image = self.crop(image=image,
-                                  pleft=pleft, 
-                                  pright=pright, 
-                                  ptop=ptop, 
+                                  pleft=pleft,
+                                  pright=pright,
+                                  ptop=ptop,
                                   pbot=pbot,
                                   output_size=output_size)
         # crop bbox
@@ -230,8 +220,8 @@ class RandomShift(object):
             new_h = img_h - abs(shift_y)
             new_w = img_w - abs(shift_x)
             new_image[new_y:new_y + new_h, new_x:new_x + new_w, :] = image[
-                                                                orig_y:orig_y + new_h,
-                                                                orig_x:orig_x + new_w, :]
+                                                                     orig_y:orig_y + new_h,
+                                                                     orig_x:orig_x + new_w, :]
             boxes_ = target["boxes"].copy()
             boxes_[..., [0, 2]] += shift_x
             boxes_[..., [1, 3]] += shift_y
@@ -272,7 +262,7 @@ class Resize(object):
 
         # resize
         if self.min_size == self.max_size:
-            # donot keep aspect ratio
+            # do not keep aspect ratio
             img_h0, img_w0 = image.shape[1:]
             image = F.resize(image, size=[min_size, min_size])
         else:
@@ -316,30 +306,29 @@ class PadImage(object):
 
 # BaseTransforms
 class BaseTransforms(object):
-    def __init__(self, 
-                 min_size=800, 
-                 max_size=800, 
-                 random_size=None, 
-                 pixel_mean=(0.485, 0.456, 0.406), 
+    def __init__(self,
+                 min_size=800,
+                 max_size=800,
+                 random_size=None,
+                 pixel_mean=(0.485, 0.456, 0.406),
                  pixel_std=(0.229, 0.224, 0.225),
-                 format='RGB'):
+                 fmt='RGB'):
         self.min_size = min_size
         self.max_size = max_size
         self.pixel_mean = pixel_mean
         self.pixel_std = pixel_std
-        self.format = format
-        self.random_size =random_size
+        self.format = fmt
+        self.random_size = random_size
         self.transforms = Compose([
             DistortTransform(),
             RandomHorizontalFlip(),
-            ToTensor(format=format),
-            Resize(min_size=min_size, 
+            ToTensor(fmt=fmt),
+            Resize(min_size=min_size,
                    max_size=max_size,
                    random_size=random_size),
             Normalize(pixel_mean, pixel_std),
             PadImage(max_size=max_size)
         ])
-
 
     def __call__(self, image, target, mask=None):
         return self.transforms(image, target, mask)
@@ -347,30 +336,29 @@ class BaseTransforms(object):
 
 # TrainTransform
 class TrainTransforms(object):
-    def __init__(self, 
+    def __init__(self,
                  trans_config=None,
-                 min_size=800, 
-                 max_size=1333, 
-                 random_size=None, 
-                 pixel_mean=(0.485, 0.456, 0.406), 
+                 min_size=800,
+                 max_size=1333,
+                 random_size=None,
+                 pixel_mean=(0.485, 0.456, 0.406),
                  pixel_std=(0.229, 0.224, 0.225),
-                 format='RGB'):
+                 fmt='RGB'):
         self.trans_config = trans_config
         self.min_size = min_size
         self.max_size = max_size
         self.pixel_mean = pixel_mean
         self.pixel_std = pixel_std
-        self.format = format
-        self.random_size =random_size
+        self.format = fmt
+        self.random_size = random_size
         self.transforms = Compose(self.build_transforms(trans_config))
-
 
     def build_transforms(self, trans_config):
         transform = []
         for t in trans_config:
             if t['name'] == 'DistortTransform':
-                transform.append(DistortTransform(hue=t['hue'], 
-                                                  saturation=t['saturation'], 
+                transform.append(DistortTransform(hue=t['hue'],
+                                                  saturation=t['saturation'],
                                                   exposure=t['exposure']))
             elif t['name'] == 'RandomHorizontalFlip':
                 transform.append(RandomHorizontalFlip())
@@ -379,19 +367,18 @@ class TrainTransforms(object):
             elif t['name'] == 'JitterCrop':
                 transform.append(JitterCrop(jitter_ratio=t['jitter_ratio']))
             elif t['name'] == 'ToTensor':
-                transform.append(ToTensor(format=self.format))
+                transform.append(ToTensor(fmt=self.format))
             elif t['name'] == 'Resize':
-                transform.append(Resize(min_size=self.min_size, 
-                                        max_size=self.max_size, 
+                transform.append(Resize(min_size=self.min_size,
+                                        max_size=self.max_size,
                                         random_size=self.random_size))
             elif t['name'] == 'Normalize':
                 transform.append(Normalize(pixel_mean=self.pixel_mean,
                                            pixel_std=self.pixel_std))
             elif t['name'] == 'PadImage':
                 transform.append(PadImage(max_size=self.max_size))
-        
-        return transform
 
+        return transform
 
     def __call__(self, image, target, mask=None):
         return self.transforms(image, target, mask)
@@ -399,23 +386,22 @@ class TrainTransforms(object):
 
 # ValTransform
 class ValTransforms(object):
-    def __init__(self, 
-                 min_size=800, 
-                 max_size=1333, 
-                 pixel_mean=(0.485, 0.456, 0.406), 
+    def __init__(self,
+                 min_size=800,
+                 max_size=1333,
+                 pixel_mean=(0.485, 0.456, 0.406),
                  pixel_std=(0.229, 0.224, 0.225),
-                 format='RGB'):
+                 fmt='RGB'):
         self.min_size = min_size
         self.max_size = max_size
         self.pixel_mean = pixel_mean
         self.pixel_std = pixel_std
-        self.format = format
+        self.format = fmt
         self.transforms = Compose([
             ToTensor(),
             Resize(min_size=min_size, max_size=max_size),
             Normalize(pixel_mean, pixel_std)
         ])
-
 
     def __call__(self, image, target=None, mask=None):
         return self.transforms(image, target, mask)

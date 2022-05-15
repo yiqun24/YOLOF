@@ -1,30 +1,24 @@
 import os
 import random
 import numpy as np
-
 from torch.utils.data import Dataset
 import cv2
-
-try:
-    from pycocotools.coco import COCO
-except:
-    print("It seems that the COCOAPI is not installed.")
-
+from pycocotools.coco import COCO
 
 coco_class_labels = ('background',
-                        'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck',
-                        'boat', 'traffic light', 'fire hydrant', 'street sign', 'stop sign',
-                        'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow',
-                        'elephant', 'bear', 'zebra', 'giraffe', 'hat', 'backpack', 'umbrella',
-                        'shoe', 'eye glasses', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis',
-                        'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove',
-                        'skateboard', 'surfboard', 'tennis racket', 'bottle', 'plate', 'wine glass',
-                        'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich',
-                        'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair',
-                        'couch', 'potted plant', 'bed', 'mirror', 'dining table', 'window', 'desk',
-                        'toilet', 'door', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone',
-                        'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'blender', 'book',
-                        'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush')
+                     'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck',
+                     'boat', 'traffic light', 'fire hydrant', 'street sign', 'stop sign',
+                     'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow',
+                     'elephant', 'bear', 'zebra', 'giraffe', 'hat', 'backpack', 'umbrella',
+                     'shoe', 'eye glasses', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis',
+                     'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove',
+                     'skateboard', 'surfboard', 'tennis racket', 'bottle', 'plate', 'wine glass',
+                     'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich',
+                     'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair',
+                     'couch', 'potted plant', 'bed', 'mirror', 'dining table', 'window', 'desk',
+                     'toilet', 'door', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone',
+                     'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'blender', 'book',
+                     'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush')
 
 coco_class_index = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20,
                     21, 22, 23, 24, 25, 27, 28, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44,
@@ -36,27 +30,20 @@ class COCODataset(Dataset):
     """
     COCO dataset class.
     """
-    def __init__(self, 
+
+    def __init__(self,
                  img_size=640,
-                 data_dir=None, 
+                 data_dir=None,
                  image_set='train2017',
                  transform=None,
                  color_augment=None,
                  mosaic=False):
-        """
-        COCO dataset initialization. Annotation data are read into memory by COCO API.
-        Args:
-            data_dir (str): dataset root directory
-            json_file (str): COCO json file name
-            name (str): COCO data name (e.g. 'train2017' or 'val2017')
-            debug (bool): if True, only one data id is selected from the dataset
-        """
         if image_set == 'train2017':
-            self.json_file='instances_train2017.json'
+            self.json_file = 'instances_train2017.json'
         elif image_set == 'val2017':
-            self.json_file='instances_val2017.json'
+            self.json_file = 'instances_val2017.json'
         elif image_set == 'test2017':
-            self.json_file='image_info_test-dev2017.json'
+            self.json_file = 'image_info_test-dev2017.json'
         self.img_size = img_size
         self.image_set = image_set
         self.data_dir = data_dir
@@ -70,15 +57,12 @@ class COCODataset(Dataset):
         if self.mosaic:
             print('use Mosaic Augmentation ...')
 
-
     def __len__(self):
         return len(self.ids)
-
 
     def __getitem__(self, index):
         image, target, mask = self.pull_item(index)
         return image, target, mask
-
 
     def load_image_target(self, index):
         anno_ids = self.coco.getAnnIds(imgIds=[int(index)], iscrowd=0)
@@ -88,7 +72,7 @@ class COCODataset(Dataset):
         img_file = os.path.join(self.data_dir, self.image_set,
                                 '{:012}'.format(index) + '.jpg')
         image = cv2.imread(img_file)
-        
+
         if self.json_file == 'instances_val5k.json' and image is None:
             img_file = os.path.join(self.data_dir, 'train2017',
                                     '{:012}'.format(index) + '.jpg')
@@ -97,11 +81,11 @@ class COCODataset(Dataset):
         assert image is not None
 
         height, width, channels = image.shape
-        
-        #load a target
+
+        # load a target
         anno = []
         for label in annotations:
-            if 'bbox' in label and label['area'] > 0:   
+            if 'bbox' in label and label['area'] > 0:
                 xmin = np.max((0, label['bbox'][0]))
                 ymin = np.max((0, label['bbox'][1]))
                 xmax = np.min((width - 1, xmin + np.max((0, label['bbox'][2] - 1))))
@@ -121,12 +105,11 @@ class COCODataset(Dataset):
             "labels": anno[:, 4],
             "orig_size": [height, width]
         }
-        
+
         return image, target
 
-
     def load_mosaic(self, index):
-        ids_list_ = self.ids[:index] + self.ids[index+1:]
+        ids_list_ = self.ids[:index] + self.ids[index + 1:]
         # random sample other indexs
         id1 = self.ids[index]
         id2, id3, id4 = random.sample(ids_list_, 3)
@@ -140,9 +123,9 @@ class COCODataset(Dataset):
             img_lists.append(img_i)
             tg_lists.append(target_i)
 
-        mosaic_img = np.zeros([self.img_size*2, self.img_size*2, img_i.shape[2]], dtype=np.uint8)
+        mosaic_img = np.zeros([self.img_size * 2, self.img_size * 2, img_i.shape[2]], dtype=np.uint8)
         # mosaic center
-        yc, xc = [int(random.uniform(-x, 2*self.img_size + x)) for x in [-self.img_size // 2, -self.img_size // 2]]
+        yc, xc = [int(random.uniform(-x, 2 * self.img_size + x)) for x in [-self.img_size // 2, -self.img_size // 2]]
         # yc = xc = self.img_size
 
         mosaic_bboxes = []
@@ -158,7 +141,7 @@ class COCODataset(Dataset):
             if np.random.randint(2):
                 # keep aspect ratio
                 r = self.img_size / max(h0, w0)
-                if r != 1: 
+                if r != 1:
                     img_i = cv2.resize(img_i, (int(w0 * r), int(h0 * r)))
             else:
                 img_i = cv2.resize(img_i, (int(self.img_size), int(self.img_size)))
@@ -189,11 +172,10 @@ class COCODataset(Dataset):
                 bboxes_i_[:, 0] = (w * bboxes_i[:, 0] / w0 + padw)
                 bboxes_i_[:, 1] = (h * bboxes_i[:, 1] / h0 + padh)
                 bboxes_i_[:, 2] = (w * bboxes_i[:, 2] / w0 + padw)
-                bboxes_i_[:, 3] = (h * bboxes_i[:, 3] / h0 + padh)    
+                bboxes_i_[:, 3] = (h * bboxes_i[:, 3] / h0 + padh)
 
                 mosaic_bboxes.append(bboxes_i_)
                 mosaic_labels.append(labels_i)
-
 
         valid_bboxes = []
         valid_labels = []
@@ -222,11 +204,10 @@ class COCODataset(Dataset):
         mosaic_target = {
             "boxes": mosaic_bboxes,
             "labels": mosaic_labels,
-            "orig_size": [self.img_size*2, self.img_size*2]
+            "orig_size": [self.img_size * 2, self.img_size * 2]
         }
-        
-        return mosaic_img, mosaic_target
 
+        return mosaic_img, mosaic_target
 
     def pull_item(self, index):
         # load a mosaic image
@@ -241,9 +222,8 @@ class COCODataset(Dataset):
             image, target = self.load_image_target(img_id)
             # augment
             image, target, mask = self.transform(image, target)
-            
-        return image, target, mask
 
+        return image, target, mask
 
     def pull_image(self, index):
         id_ = self.ids[index]
@@ -258,13 +238,12 @@ class COCODataset(Dataset):
 
         return img, id_
 
-
     def pull_anno(self, index):
         id_ = self.ids[index]
 
         anno_ids = self.coco.getAnnIds(imgIds=[int(id_)], iscrowd=None)
         annotations = self.coco.loadAnns(anno_ids)
-        
+
         anno = []
         for label in annotations:
             if 'bbox' in label:
@@ -272,7 +251,7 @@ class COCODataset(Dataset):
                 ymin = np.max((0, label['bbox'][1]))
                 xmax = xmin + label['bbox'][2]
                 ymax = ymin + label['bbox'][3]
-                
+
                 if label['area'] > 0 and xmax >= xmin and ymax >= ymin:
                     label_ind = label['category_id']
                     cls_id = self.class_ids.index(label_ind)
@@ -314,13 +293,13 @@ if __name__ == "__main__":
                                 random_size=random_size,
                                 pixel_mean=pixel_mean,
                                 pixel_std=pixel_std,
-                                format=format)
+                                fmt=format)
     color_augment = BaseTransforms(min_size=max_size,
                                    max_size=max_size,
                                    random_size=random_size,
                                    pixel_mean=pixel_mean,
                                    pixel_std=pixel_std,
-                                   format=format)
+                                   fmt=format)
     pixel_mean = np.array(pixel_mean, dtype=np.float32)
     pixel_std = np.array(pixel_std, dtype=np.float32)
 
@@ -330,7 +309,7 @@ if __name__ == "__main__":
                           transform=transform,
                           color_augment=color_augment,
                           mosaic=True)
-    
+
     np.random.seed(0)
     class_colors = [(np.random.randint(255),
                      np.random.randint(255),
@@ -362,7 +341,7 @@ if __name__ == "__main__":
             color = class_colors[cls_id]
             # class name
             label = coco_class_labels[coco_class_index[cls_id]]
-            image = cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), (0,0,255), 2)
+            image = cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 2)
             # put the test on the bbox
             cv2.putText(image, label, (int(x1), int(y1 - 5)), 0, 0.5, color, 1, lineType=cv2.LINE_AA)
         cv2.imshow('gt', image)

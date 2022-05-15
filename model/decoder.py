@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from typing import Tuple
-from layer import Conv
+from .layer import Conv
 
 
 # noinspection PyTypeChecker
@@ -83,6 +83,3 @@ class Decoder(nn.Module):
 
         return normalized_cls_score, bbox_reg
 
-
-def build_decoder():
-    return Decoder()

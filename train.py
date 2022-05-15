@@ -1,25 +1,17 @@
 import os
 import argparse
 import time
-import random
-
 import torch
-import torch.nn.functional as F
-import torch.optim as optim
-import torch.backends.cudnn as cudnn
-
 import distributed_utils
-from backbone.build_model import Backbone, build_resnet
+import torch.backends.cudnn as cudnn
 from criterion import build_criterion
 from data.coco import COCODataset
 from data.transforms import ValTransforms, BaseTransforms, TrainTransforms
-from decoder import Decoder
-from encoder import DilatedEncoder
 from evaluator.coco_evaluator import COCOAPIEvaluator
 from misc import get_total_grad_norm
 from optimizer import build_optimizer
 from warmup_schedule import build_warmup
-from yolof import YOLOF
+from model.yolof import build_model
 
 
 def parse_args():
@@ -36,7 +28,7 @@ def parse_args():
     parser.add_argument('-lr_bk', '--backbone_lr', type=float, default=0.01,
                         help='backbone learning rate')
     parser.add_argument('--num_workers', default=4, type=int,
-                        help='Number of workers used in dataloading')
+                        help='Number of workers used in data loading')
     parser.add_argument('--num_gpu', default=1, type=int,
                         help='Number of GPUs to train')
     parser.add_argument('--eval_epoch', type=int,
@@ -59,7 +51,7 @@ def parse_args():
                         help='The longer val size of the input image')
 
     # model
-    parser.add_argument('-v', '--version', default='yolof50', choices=['yolof18', 'yolof50', 'yolof50-DC5', \
+    parser.add_argument('-v', '--version', default='yolof50', choices=['yolof18', 'yolof50', 'yolof50-DC5',
                                                                        'yolof101', 'yolof101-DC5', 'yolof50-DC5-640'],
                         help='build yolof')
     parser.add_argument('--conf_thresh', default=0.05, type=float,
@@ -68,14 +60,10 @@ def parse_args():
                         help='NMS threshold')
     parser.add_argument('--topk', default=1000, type=int,
                         help='NMS threshold')
-    parser.add_argument('-p', '--coco_pretrained', default=None, type=str,
-                        help='coco pretrained weight')
 
     # dataset
-    parser.add_argument('--root', default='D:\\',
+    parser.add_argument('--root', default='/root/autodl-pub/COCO2017',
                         help='data root')
-    parser.add_argument('-d', '--dataset', default='coco',
-                        help='coco, voc, widerface, crowdhuman')
 
     # Loss
     parser.add_argument('--alpha', default=0.25, type=float,
@@ -93,16 +81,6 @@ def parse_args():
     parser.add_argument('--no_warmup', action='store_true', default=False,
                         help='do not use warmup')
 
-    # DDP train
-    # parser.add_argument('-dist', '--distributed', action='store_true', default=False,
-    #                     help='distributed training')
-    # parser.add_argument('--dist_url', default='env://',
-    #                     help='url used to set up distributed training')
-    # parser.add_argument('--world_size', default=1, type=int,
-    #                     help='number of distributed processes')
-    # parser.add_argument('--sybn', action='store_true', default=False,
-    #                     help='use sybn.')
-
     return parser.parse_args()
 
 
@@ -112,7 +90,7 @@ def train():
     print("----------------------------------------------------------")
 
     # path to save model
-    path_to_save = os.path.join(args.save_folder, args.dataset, args.version)
+    path_to_save = os.path.join(args.save_folder, args.version)
     os.makedirs(path_to_save, exist_ok=True)
 
     # cuda
@@ -141,12 +119,11 @@ def train():
     criterion = build_criterion(args=args, device=device, num_classes=num_classes)
 
     # build model
-    net = build_model(args=args,
-                      device=device,
-                      num_classes=num_classes,
-                      trainable=True,
-                      coco_pretrained=args.coco_pretrained)
-    model = net
+    model = build_model(args=args,
+                        device=device,
+                        num_classes=num_classes,
+                        pretrained=True)
+
     model = model.to(device).train()
 
     # optimizer
@@ -241,7 +218,8 @@ def train():
                 cur_lr = [param_group['lr'] for param_group in optimizer.param_groups]
                 cur_lr_dict = {'lr': cur_lr[0], 'lr_bk': cur_lr[1]}
                 print(
-                    '[Epoch %d/%d][Iter %d/%d][lr: %.6f][lr_bk: %.6f][Loss: cls %.2f || reg %.2f || gnorm: %.2f || size [%d, %d] || time: %.2f]'
+                    '[Epoch %d/%d][Iter %d/%d][lr: %.6f][lr_bk: %.6f][Loss: cls %.2f || reg %.2f || gnorm: %.2f || '
+                    'size [%d, %d] || time: %.2f] '
                     % (epoch + 1,
                        max_epoch,
                        iter_i,
@@ -346,20 +324,20 @@ def build_dataset(args, device):
                                       random_size=epoch[args.schedule]['multi_scale'],
                                       pixel_mean=[0.485, 0.456, 0.406],
                                       pixel_std=[0.229, 0.224, 0.225],
-                                      format='RGB')
+                                      fmt='RGB')
     val_transform = ValTransforms(min_size=args.val_min_size,
                                   max_size=args.val_max_size,
                                   pixel_mean=[0.485, 0.456, 0.406],
                                   pixel_std=[0.229, 0.224, 0.225],
-                                  format='RGB')
+                                  fmt='RGB')
     color_augment = BaseTransforms(min_size=args.train_min_size,
                                    max_size=args.train_max_size,
                                    random_size=epoch[args.schedule]['multi_scale'],
                                    pixel_mean=[0.485, 0.456, 0.406],
                                    pixel_std=[0.229, 0.224, 0.225],
-                                   format='RGB')
+                                   fmt='RGB')
     # dataset
-    data_dir = os.path.join(args.root, 'COCO')
+    data_dir = args.root
     num_classes = 80
     # dataset
     dataset = COCODataset(img_size=args.train_max_size,
@@ -374,7 +352,7 @@ def build_dataset(args, device):
                                  transform=val_transform)
 
     print('==============================')
-    print('Training model on:', args.dataset)
+    print('Training model on COCO')
     print('The dataset size:', len(dataset))
 
     return dataset, evaluator, num_classes
@@ -399,43 +377,6 @@ class CollateFunc(object):
         masks = torch.stack(masks, 0)  # [B, H, W]
 
         return images, targets, masks
-
-
-def build_model(args,
-                device,
-                num_classes=80,
-                trainable=False,
-                coco_pretrained=None):
-    print('==============================')
-    print('Build {} ...'.format(args.version.upper()))
-    backbone, bk_dim = build_resnet(model_name='resnet18',
-                                    pretrained=trainable,
-                                    norm_type='FrozeBN')
-    encoder = DilatedEncoder(in_channels=bk_dim)
-    decoder = Decoder(in_channels=bk_dim, num_classes=num_classes)
-    model = YOLOF(backbone=backbone, encoder=encoder, decoder=decoder, device=device)
-
-    # Load COCO pretrained weight
-    if coco_pretrained is not None:
-        print('Loading COCO pretrained weight ...')
-        checkpoint = torch.load(coco_pretrained, map_location='cpu')
-        # checkpoint state dict
-        checkpoint_state_dict = checkpoint.pop("model")
-        # model state dict
-        model_state_dict = model.state_dict()
-        # check
-        for k in list(checkpoint_state_dict.keys()):
-            if k in model_state_dict:
-                shape_model = tuple(model_state_dict[k].shape)
-                shape_checkpoint = tuple(checkpoint_state_dict[k].shape)
-                if shape_model != shape_checkpoint:
-                    checkpoint_state_dict.pop(k)
-            else:
-                print(k)
-
-        model.load_state_dict(checkpoint_state_dict, strict=False)
-
-    return model
 
 
 if __name__ == '__main__':

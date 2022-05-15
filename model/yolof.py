@@ -3,6 +3,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from .decoder import Decoder
+from .encoder import DilatedEncoder
+from .backbone import build_resnet
 
 
 class YOLOF(nn.Module):
@@ -10,10 +13,11 @@ class YOLOF(nn.Module):
                  backbone,
                  encoder,
                  decoder,
+                 anchor_sizes,
                  device,
-                 num_classes=20,
-                 pos_ignore_thresh=0.15,
-                 neg_ignore_thresh=0.7,
+                 num_classes=80,
+                 conf_thresh=0.05,
+                 nms_thresh=0.6,
                  topk=1000):
         super(YOLOF, self).__init__()
         self.backbone = backbone
@@ -22,18 +26,17 @@ class YOLOF(nn.Module):
 
         self.device = device
         self.num_classes = num_classes
-        self.num_anchors = len([[32, 32], [64, 64], [128, 128], [256, 256], [512, 512]])
-        # Ignore thresholds:
-        self.pos_ignore_thresh = pos_ignore_thresh
-        self.neg_ignore_thresh = neg_ignore_thresh
+        self.conf_thresh = conf_thresh
+        self.nms_thresh = nms_thresh
         self.fmp_size = None
         self.stride = 32
-        self.anchor_sizes = torch.as_tensor([[32, 32], [64, 64], [128, 128], [256, 256], [512, 512]])  # aspect ratio?
+        self.anchor_sizes = torch.as_tensor(anchor_sizes)  # aspect ratio?
+        self.num_anchors = len(anchor_sizes)
         self.anchor_boxes = None
         self.scale_clamp = math.log(1000.0 / 16)
         self.topk = topk
 
-    def generate_anchor(self, fmp_size):
+    def generate_anchors(self, fmp_size):
         if self.fmp_size is not None and self.fmp_size == fmp_size:
             return self.anchor_boxes
         # feature map size
@@ -78,7 +81,6 @@ class YOLOF(nn.Module):
         return pred_boxes
 
     def nms(self, dets, scores):
-        """"Pure Python NMS."""
         x1 = dets[:, 0]  # x_min
         y1 = dets[:, 1]  # y_min
         x2 = dets[:, 2]  # x_max
@@ -205,7 +207,7 @@ class YOLOF(nn.Module):
             x = self.encoder(x)
             H, W = x.shape[2:]
             cls_pred, reg_pred = self.decoder(x)
-            anchor_boxes = self.generate_anchor(fmp_size=[H, W])  # [M, 4]
+            anchor_boxes = self.generate_anchors(fmp_size=[H, W])  # [M, 4]
             box_pred = self.box_transform(anchor_boxes[None], reg_pred)  # [B, M, 4]
 
             if mask is not None:
@@ -221,3 +223,27 @@ class YOLOF(nn.Module):
                        "mask": mask}
 
             return outputs
+
+
+def build_model(args,
+                device,
+                num_classes=80,
+                pretrained=False):
+    print('==============================')
+    print('Build {} ...'.format(args.version.upper()))
+    anchor_sizes = [[32, 32], [64, 64], [128, 128], [256, 256], [512, 512]]
+    backbone, bk_dim = build_resnet(model_name='resnet18',
+                                    pretrained=pretrained,
+                                    norm_type='FrozeBN')
+    encoder = DilatedEncoder(in_channels=bk_dim)
+    decoder = Decoder(in_channels=512, num_classes=num_classes, num_anchors=len(anchor_sizes))
+    model = YOLOF(backbone=backbone,
+                  encoder=encoder,
+                  decoder=decoder,
+                  anchor_sizes=anchor_sizes,
+                  device=device,
+                  conf_thresh=args.conf_thresh,
+                  nms_thresh=args.nms_thresh,
+                  topk=args.topk)
+
+    return model

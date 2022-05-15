@@ -17,7 +17,7 @@ class UniformMatcher(nn.Module):
         self.match_times = match_times
 
     @torch.no_grad()
-    def forward(self, pred_boxes, anchors, targets):
+    def forward(self, pred_boxes, anchor_boxes, targets):
         """
             pred_boxes: (Tensor)   [B, num_queries, 4]
             anchor_boxes: (Tensor) [num_queries, 4]
@@ -25,32 +25,38 @@ class UniformMatcher(nn.Module):
                                  'labels': [...],
                                  'orig_size': ...}
         """
+
         bs, num_queries = pred_boxes.shape[:2]
 
         # We flatten to compute the cost matrices in a batch
-        # [batch_size * num_anchors, 4]
+        # [B, num_queries, 4] -> [M, 4]
         out_bbox = pred_boxes.flatten(0, 1)
-        anchors = anchors.flatten(0, 1)
+        # [num_queries, 4] -> [1, num_queries, 4] -> [B, num_queries, 4] -> [M, 4]
+        anchor_boxes = anchor_boxes[None].repeat(bs, 1, 1)
+        anchor_boxes = anchor_boxes.flatten(0, 1)
 
         # Also concat the target boxes
-        tgt_bbox = torch.cat([v.gt_boxes.tensor for v in targets])
+        tgt_bbox = torch.cat([v['boxes'] for v in targets])
 
         # Compute the L1 cost between boxes
         # Note that we use anchors and predict boxes both
-        cost_bbox = torch.cdist(
-            box_xyxy2cxcywh(out_bbox), box_xyxy2cxcywh(tgt_bbox), p=1)
-        cost_bbox_anchors = torch.cdist(
-            box_xyxy2cxcywh(anchors), box_xyxy2cxcywh(tgt_bbox), p=1)
+        cost_bbox = torch.cdist(box_xyxy2cxcywh(out_bbox),
+                                box_xyxy2cxcywh(tgt_bbox),
+                                p=1)
+        cost_bbox_anchors = torch.cdist(anchor_boxes,
+                                        box_xyxy2cxcywh(tgt_bbox),
+                                        p=1)
 
-        # Final cost matrix
+        # Final cost matrix: [B, M, N], M=num_queries, N=num_tgt
         C = cost_bbox
-        C = C.view(bs, num_queries, -1).cpu()
+        C = C.view(bs, num_queries, -1)
         C1 = cost_bbox_anchors
-        C1 = C1.view(bs, num_queries, -1).cpu()
+        C1 = C1.view(bs, num_queries, -1)
 
-        sizes = [len(v.gt_boxes.tensor) for v in targets]
+        sizes = [len(v['boxes']) for v in targets]  # the number of object instances in each image
         all_indices_list = [[] for _ in range(bs)]
         # positive indices when matching predict boxes and gt boxes
+        # len(indices) = batch size
         indices = [
             tuple(
                 torch.topk(
@@ -72,6 +78,7 @@ class UniformMatcher(nn.Module):
             for i, c in enumerate(C1.split(sizes, -1))]
 
         # concat the indices according to image ids
+        # img_id = batch_id
         for img_id, (idx, idx1) in enumerate(zip(indices, indices1)):
             img_idx_i = [
                 np.array(idx_ + idx1_)
@@ -80,7 +87,7 @@ class UniformMatcher(nn.Module):
             img_idx_j = [
                 np.array(list(range(len(idx_))) + list(range(len(idx1_))))
                 for (idx_, idx1_) in zip(idx, idx1)
-            ]
+            ]  # 'j' is the index of tgt
             all_indices_list[img_id] = [*zip(img_idx_i, img_idx_j)]
 
         # re-organize the positive indices
@@ -95,8 +102,6 @@ class UniformMatcher(nn.Module):
             all_idx_i = np.hstack(all_idx_i)
             all_idx_j = np.hstack(all_idx_j)
             all_indices.append((all_idx_i, all_idx_j))
-        return [
-            (torch.as_tensor(i, dtype=torch.int64),
-             torch.as_tensor(j, dtype=torch.int64))
-            for i, j in all_indices
-        ]
+
+        return [(torch.as_tensor(i, dtype=torch.int64),
+                 torch.as_tensor(j, dtype=torch.int64)) for i, j in all_indices]

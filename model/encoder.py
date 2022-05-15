@@ -1,7 +1,7 @@
 import torch.nn as nn
 
-import weight_init
-from layer import Conv
+from .weight_init import c2_xaver_fill
+from .layer import Conv
 
 
 class Bottleneck(nn.Module):
@@ -28,7 +28,6 @@ class DilatedEncoder(nn.Module):
 
         self.in_channels = in_channels
         self.encoder_channels = encoder_channels
-        self.block_mid_channels = block_mid_channels
         # 为什么没有BatchNorm? 这样处理的目的是什么?
         self.lateral = nn.Sequential(
             nn.Conv2d(in_channels, encoder_channels, kernel_size=1),
@@ -54,8 +53,8 @@ class DilatedEncoder(nn.Module):
     def _init_weights(self):
         # module(): generator
         # BatchNorm vs bias?
-        weight_init.c2_xaver_fill(self.lateral[0])
-        weight_init.c2_xaver_fill(self.fpn[0])
+        c2_xaver_fill(self.lateral[0])
+        c2_xaver_fill(self.fpn[0])
         for m in [self.lateral[1], self.fpn[1]]:
             nn.init.constant_(m.weight, 1)
             nn.init.constant_(m.bias, 0)
@@ -74,11 +73,6 @@ class DilatedEncoder(nn.Module):
         out = self.lateral(feature)
         out = self.fpn(out)
         return self.dilation_encoders(out)
-
-
-def build_encoder():
-    # add config!
-    return DilatedEncoder()
 
 
 if __name__ == '__main__':

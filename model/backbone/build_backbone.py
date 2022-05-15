@@ -7,7 +7,7 @@ import torch
 from torch import nn
 from torchvision.models._utils import IntermediateLayerGetter
 
-from backbone import resnet
+from . import resnet
 
 
 class FrozenBatchNorm2d(torch.nn.Module):
@@ -37,7 +37,7 @@ class FrozenBatchNorm2d(torch.nn.Module):
 
     def forward(self, x):
         # move reshapes to the beginning
-        # to make it fuser-friendly
+        # to make it user-friendly
         w = self.weight.reshape(1, -1, 1, 1)
         b = self.bias.reshape(1, -1, 1, 1)
         rv = self.running_var.reshape(1, -1, 1, 1)

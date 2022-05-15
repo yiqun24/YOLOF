@@ -1,10 +1,9 @@
-
 # Build warmup scheduler
 
 
-def build_warmup(name='linear', 
-                 base_lr=0.01, 
-                 wp_iter=500, 
+def build_warmup(name='linear',
+                 base_lr=0.01,
+                 wp_iter=500,
                  warmup_factor=0.00066667):
     print('==============================')
     print('WarmUpScheduler: {}'.format(name))
@@ -12,33 +11,31 @@ def build_warmup(name='linear',
     print('--warmup_factor: {}'.format(warmup_factor))
     print('--wp_iter: {}'.format(wp_iter))
 
-    warmup_scheduler = WarmUpScheduler(name=name, 
-                                       base_lr=base_lr, 
-                                       wp_iter=wp_iter, 
+    warmup_scheduler = WarmUpScheduler(name=name,
+                                       base_lr=base_lr,
+                                       wp_iter=wp_iter,
                                        warmup_factor=warmup_factor)
-    
+
     return warmup_scheduler
 
-                           
+
 # Basic Warmup Scheduler
 class WarmUpScheduler(object):
-    def __init__(self, 
-                 name='linear', 
-                 base_lr=0.01, 
-                 wp_iter=500, 
+    def __init__(self,
+                 name='linear',
+                 base_lr=0.01,
+                 wp_iter=500,
                  warmup_factor=0.00066667):
         self.name = name
         self.base_lr = base_lr
         self.wp_iter = wp_iter
         self.warmup_factor = warmup_factor
 
-
     def set_lr(self, optimizer, lr, base_lr):
         for param_group in optimizer.param_groups:
             init_lr = param_group['initial_lr']
             ratio = init_lr / base_lr
             param_group['lr'] = lr * ratio
-
 
     def warmup(self, iter, optimizer):
         # warmup
@@ -53,7 +50,5 @@ class WarmUpScheduler(object):
             tmp_lr = self.base_lr * warmup_factor
             self.set_lr(optimizer, tmp_lr, self.base_lr)
 
-
     def __call__(self, iter, optimizer):
         self.warmup(iter, optimizer)
-        
