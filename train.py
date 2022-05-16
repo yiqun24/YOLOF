@@ -12,6 +12,7 @@ from misc import get_total_grad_norm
 from optimizer import build_optimizer
 from warmup_schedule import build_warmup
 from model.yolof import build_model
+from misc import CollateFunc
 
 
 def parse_args():
@@ -51,8 +52,7 @@ def parse_args():
                         help='The longer val size of the input image')
 
     # model
-    parser.add_argument('-v', '--version', default='yolof50', choices=['yolof18', 'yolof50', 'yolof50-DC5',
-                                                                       'yolof101', 'yolof101-DC5', 'yolof50-DC5-640'],
+    parser.add_argument('-v', '--version', default='yolof18', choices=['yolof18', 'yolof50'],
                         help='build yolof')
     parser.add_argument('--conf_thresh', default=0.05, type=float,
                         help='NMS threshold')
@@ -62,7 +62,7 @@ def parse_args():
                         help='NMS threshold')
 
     # dataset
-    parser.add_argument('--root', default='/root/autodl-pub/COCO2017',
+    parser.add_argument('--root', default='/root/autodl-tmp',
                         help='data root')
 
     # Loss
@@ -74,10 +74,6 @@ def parse_args():
                         help='weight of cls loss')
     parser.add_argument('--loss_reg_weight', default=1.0, type=float,
                         help='weight of reg loss')
-
-    # train trick
-    parser.add_argument('--mosaic', action='store_true', default=False,
-                        help='Mosaic augmentation')
     parser.add_argument('--no_warmup', action='store_true', default=False,
                         help='do not use warmup')
 
@@ -270,11 +266,6 @@ def train():
                     model_eval.trainable = True
                     model_eval.train()
 
-        # close mosaic augmentation
-        if args.mosaic and max_epoch - epoch == 5:
-            print('close Mosaic Augmentation ...')
-            dataloader.dataset.mosaic = False
-
 
 def build_dataset(args, device):
     # transform
@@ -344,8 +335,7 @@ def build_dataset(args, device):
                           data_dir=data_dir,
                           image_set='train2017',
                           transform=train_transform,
-                          color_augment=color_augment,
-                          mosaic=args.mosaic)
+                          color_augment=color_augment)
     # evaluator
     evaluator = COCOAPIEvaluator(data_dir=data_dir,
                                  device=device,
@@ -356,27 +346,6 @@ def build_dataset(args, device):
     print('The dataset size:', len(dataset))
 
     return dataset, evaluator, num_classes
-
-
-class CollateFunc(object):
-    def __call__(self, batch):
-        targets = []
-        images = []
-        masks = []
-
-        for sample in batch:
-            image = sample[0]
-            target = sample[1]
-            mask = sample[2]
-
-            images.append(image)
-            targets.append(target)
-            masks.append(mask)
-
-        images = torch.stack(images, 0)  # [B, C, H, W]
-        masks = torch.stack(masks, 0)  # [B, H, W]
-
-        return images, targets, masks
 
 
 if __name__ == '__main__':

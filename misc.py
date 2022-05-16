@@ -6,10 +6,10 @@ import math
 
 def nms(dets, scores, nms_thresh=0.4):
     """"Pure Python NMS baseline."""
-    x1 = dets[:, 0]  #xmin
-    y1 = dets[:, 1]  #ymin
-    x2 = dets[:, 2]  #xmax
-    y2 = dets[:, 3]  #ymax
+    x1 = dets[:, 0]  # xmin
+    y1 = dets[:, 1]  # ymin
+    x2 = dets[:, 2]  # xmax
+    y2 = dets[:, 3]  # ymax
 
     areas = (x2 - x1) * (y2 - y1)
     order = scores.argsort()[::-1]
@@ -29,7 +29,7 @@ def nms(dets, scores, nms_thresh=0.4):
 
         # Cross Area / (bbox + particular area - Cross Area)
         ovr = inter / (areas[i] + areas[order[1:]] - inter + 1e-10)
-        #reserve all the boundingbox whose ovr less than thresh
+        # reserve all the boundingbox whose ovr less than thresh
         inds = np.where(ovr <= nms_thresh)[0]
         order = order[inds + 1]
 
@@ -65,20 +65,22 @@ class CollateFunc(object):
             targets.append(target)
             masks.append(mask)
 
-        images = torch.stack(images, 0) # [B, C, H, W]
-        masks = torch.stack(masks, 0)   # [B, H, W]
+        images = torch.stack(images, 0)  # [B, C, H, W]
+        masks = torch.stack(masks, 0)  # [B, H, W]
 
         return images, targets, masks
 
 
 # test time augmentation(TTA)
 class TestTimeAugmentation(object):
-    def __init__(self, num_classes=80, nms_thresh=0.4, scale_range=[320, 640, 32]):
+    def __init__(self, num_classes=80, nms_thresh=0.4, scale_range=None):
+        if scale_range is None:
+            scale_range = [320, 640, 32]
         self.nms = nms
         self.num_classes = num_classes
         self.nms_thresh = nms_thresh
-        self.scales = np.arange(scale_range[0], scale_range[1]+1, scale_range[2])
-        
+        self.scales = np.arange(scale_range[0], scale_range[1] + 1, scale_range[2])
+
     def __call__(self, x, model):
         # x: Tensor -> [B, C, H, W]
         bboxes_list = []
@@ -90,11 +92,11 @@ class TestTimeAugmentation(object):
             if x.size(-1) == s and x.size(-2) == s:
                 x_scale = x
             else:
-                x_scale =torch.nn.functional.interpolate(
-                                        input=x, 
-                                        size=(s, s), 
-                                        mode='bilinear', 
-                                        align_corners=False)
+                x_scale = torch.nn.functional.interpolate(
+                    input=x,
+                    size=(s, s),
+                    mode='bilinear',
+                    align_corners=False)
             model.set_grid(s)
             bboxes, scores, labels = model(x_scale)
             bboxes_list.append(bboxes)
